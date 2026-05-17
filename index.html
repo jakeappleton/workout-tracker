@@ -1,0 +1,1079 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0e0e10" />
+<title>Workout Tracker</title>
+<style>
+  :root {
+    --bg: #0e0e10;
+    --surface: #17171b;
+    --surface-2: #1f1f25;
+    --border: #2a2a32;
+    --text: #ececf0;
+    --muted: #8a8a94;
+    --accent: #60a5fa;
+    --accent-2: #3b82f6;
+    --good: #34d399;
+    --bad: #f87171;
+    --same: #6b7280;
+    --warn: #fbbf24;
+    --radius: 12px;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    font-size: 16px;
+    line-height: 1.4;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .app {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 16px 16px 96px;
+  }
+
+  header.bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0 16px;
+    position: sticky;
+    top: 0;
+    background: linear-gradient(to bottom, var(--bg) 70%, transparent);
+    z-index: 10;
+  }
+  header.bar h1 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    flex: 1;
+    letter-spacing: -0.01em;
+  }
+  header.bar .sub {
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 400;
+    margin-left: 6px;
+  }
+
+  button {
+    font: inherit;
+    color: inherit;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.05s;
+    -webkit-appearance: none;
+  }
+  button:active { transform: scale(0.98); }
+  button.primary {
+    background: var(--accent-2);
+    border-color: var(--accent-2);
+    color: white;
+    font-weight: 600;
+  }
+  button.primary:hover { background: var(--accent); }
+  button.ghost { background: transparent; }
+  button.icon {
+    width: 38px; height: 38px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+  }
+  button.danger { color: var(--bad); }
+
+  .day-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .day-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 16px;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .day-card:hover { border-color: var(--accent); }
+  .day-card .num {
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+  .day-card .title {
+    font-size: 17px;
+    font-weight: 600;
+    margin-top: 4px;
+  }
+  .day-card .meta {
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 8px;
+  }
+
+  .section-title {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin: 24px 4px 10px;
+    font-weight: 600;
+  }
+
+  .exercise {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+  .exercise h2 {
+    margin: 0 0 2px;
+    font-size: 16px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .exercise .target {
+    color: var(--muted);
+    font-size: 12.5px;
+    margin-bottom: 12px;
+  }
+  .exercise .history-link {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--accent);
+    background: none;
+    border: none;
+    padding: 4px 6px;
+    cursor: pointer;
+  }
+
+  .set-row {
+    display: grid;
+    grid-template-columns: 36px 1fr 1fr;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .set-row.three { grid-template-columns: 36px 1fr 1fr 1fr; }
+  .set-row.sprints { grid-template-columns: 36px 1fr; }
+  .set-row .label {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    text-align: center;
+  }
+
+  .input-wrap {
+    position: relative;
+  }
+  .input-wrap input {
+    width: 100%;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 10px 10px 10px 10px;
+    font-size: 16px;
+    font-variant-numeric: tabular-nums;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .input-wrap input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .input-wrap .last {
+    display: block;
+    color: var(--muted);
+    font-size: 11px;
+    margin: 2px 0 4px 4px;
+    font-variant-numeric: tabular-nums;
+  }
+  .input-wrap .last .v { color: #b9b9c3; }
+  .input-wrap .unit {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    font-size: 12px;
+    pointer-events: none;
+  }
+  .input-wrap input.with-unit { padding-right: 36px; }
+
+  .badge {
+    display: inline-block;
+    font-size: 10.5px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 999px;
+    margin-left: 6px;
+    letter-spacing: 0.04em;
+    vertical-align: middle;
+  }
+  .badge.good { background: rgba(52, 211, 153, 0.16); color: var(--good); }
+  .badge.bad  { background: rgba(248, 113, 113, 0.16); color: var(--bad); }
+  .badge.same { background: rgba(107, 114, 128, 0.22); color: #b9b9c3; }
+
+  .sprints-list .sprint-row {
+    display: grid;
+    grid-template-columns: 36px 1fr auto;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .sprints-list .sprint-row .remove {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    width: 34px;
+    height: 38px;
+    padding: 0;
+    font-size: 16px;
+  }
+  .add-sprint {
+    background: transparent;
+    border: 1px dashed var(--border);
+    color: var(--muted);
+    width: 100%;
+    padding: 10px;
+    margin-top: 4px;
+  }
+  .add-sprint:hover { border-color: var(--accent); color: var(--accent); }
+
+  .save-bar {
+    position: fixed;
+    left: 0; right: 0;
+    bottom: 0;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    background: linear-gradient(to top, var(--bg) 60%, transparent);
+    z-index: 20;
+  }
+  .save-bar .inner {
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  .save-bar button {
+    width: 100%;
+    padding: 14px;
+    font-size: 16px;
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 88px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    padding: 10px 16px;
+    border-radius: 999px;
+    font-size: 13px;
+    opacity: 0;
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none;
+    z-index: 30;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
+
+  /* History */
+  .history-entry {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    margin-bottom: 10px;
+  }
+  .history-entry .when {
+    color: var(--muted);
+    font-size: 12px;
+    margin-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .history-entry .sets {
+    font-variant-numeric: tabular-nums;
+    font-size: 14.5px;
+  }
+  .history-entry .sets span + span { margin-left: 10px; }
+
+  .empty {
+    color: var(--muted);
+    text-align: center;
+    padding: 40px 16px;
+    font-size: 14px;
+  }
+
+  .settings-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 24px;
+  }
+  .settings-row button {
+    flex: 1;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  /* iOS — strip number spinner */
+  input[type=number]::-webkit-inner-spin-button,
+  input[type=number]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type=number] { -moz-appearance: textfield; }
+
+  @media (max-width: 380px) {
+    .set-row { grid-template-columns: 32px 1fr 1fr; gap: 6px; }
+    .set-row.three { grid-template-columns: 32px 1fr 1fr 1fr; }
+    .input-wrap input { font-size: 15px; padding: 9px 8px; }
+  }
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+
+// ---------- Program ----------
+const PROGRAM = {
+  1: {
+    title: "Bench + Pull-Ups",
+    exercises: [
+      { name: "Bench Press",            target: "2x3-5, heavy",   type: "standard", sets: 2 },
+      { name: "Weighted Pull-Ups",      target: "2x3-5, heavy",   type: "standard", sets: 2 },
+      { name: "Incline Dumbbell Curl",  target: "2x to failure",  type: "standard", sets: 2 },
+      { name: "Preacher Curl",          target: "2x to failure",  type: "standard", sets: 2 },
+      { name: "Tricep Pushdown",        target: "2x to failure",  type: "standard", sets: 2 },
+      { name: "Neck Flexion/Extension", target: "2x to failure",  type: "standard", sets: 2 },
+    ],
+  },
+  2: {
+    title: "Leg Press",
+    exercises: [
+      { name: "Leg Press",           target: "2x5, heavy",    type: "standard", sets: 2 },
+      { name: "Leg Extension",       target: "2x to failure", type: "standard", sets: 2 },
+      { name: "Standing Calf Raise", target: "2x to failure", type: "standard", sets: 2 },
+      { name: "Hanging Leg Raise",   target: "2x to failure", type: "standard", sets: 2 },
+    ],
+  },
+  3: {
+    title: "Shoulder Press",
+    exercises: [
+      { name: "Overhead Press",            target: "2x3-5, heavy",  type: "standard", sets: 2 },
+      { name: "Hammer Curl",               target: "2x to failure", type: "standard", sets: 2 },
+      { name: "Cable Curl",                target: "2x to failure", type: "standard", sets: 2 },
+      { name: "Lateral Raise",             target: "2x to failure", type: "standard", sets: 2 },
+      { name: "Overhead Tricep Extension", target: "2x to failure", type: "standard", sets: 2 },
+      { name: "Wrist Curl",                target: "2x to failure", type: "standard", sets: 2 },
+    ],
+  },
+  4: {
+    title: "Sprints + RDL",
+    exercises: [
+      { name: "Woodway Sprints",     target: "4-6 sprints, top speed (mph)", type: "sprints" },
+      { name: "Barbell RDL",         target: "2x5, heavy",    type: "standard", sets: 2 },
+      { name: "Seated Leg Curl",     target: "2x to failure", type: "standard", sets: 2 },
+      { name: "Farmer's Carry",      target: "2x to failure (lbs × sec)", type: "carry", sets: 2 },
+      { name: "Neck Lateral Flexion",target: "2x to failure", type: "standard", sets: 2 },
+    ],
+  },
+};
+
+// ---------- Storage ----------
+const STORAGE_KEY = "wt.workouts.v1";
+function loadWorkouts() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+function saveWorkouts(arr) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
+}
+
+// ---------- Helpers ----------
+function fmtNum(n) {
+  if (n === null || n === undefined || n === "") return "";
+  const v = Number(n);
+  if (Number.isNaN(v)) return "";
+  return Number.isInteger(v) ? String(v) : v.toFixed(1).replace(/\.0$/, "");
+}
+function parseNum(s) {
+  if (s === null || s === undefined) return null;
+  const t = String(s).trim();
+  if (!t) return null;
+  const v = Number(t);
+  return Number.isNaN(v) ? null : v;
+}
+function fmtDate(ts) {
+  const d = new Date(ts);
+  const today = new Date();
+  const yest = new Date(); yest.setDate(today.getDate() - 1);
+  const same = (a, b) => a.toDateString() === b.toDateString();
+  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (same(d, today)) return `Today, ${time}`;
+  if (same(d, yest))  return `Yesterday, ${time}`;
+  return d.toLocaleDateString([], { month: "short", day: "numeric", year: d.getFullYear() === today.getFullYear() ? undefined : "numeric" }) + ", " + time;
+}
+function lastSessionFor(exerciseName) {
+  const all = loadWorkouts();
+  for (let i = all.length - 1; i >= 0; i--) {
+    const ex = all[i].exercises && all[i].exercises[exerciseName];
+    if (ex && ex.sets && ex.sets.length) return { session: all[i], ex };
+  }
+  return null;
+}
+function historyFor(exerciseName) {
+  return loadWorkouts()
+    .filter(w => w.exercises && w.exercises[exerciseName] && w.exercises[exerciseName].sets && w.exercises[exerciseName].sets.length)
+    .map(w => ({ ts: w.ts, sets: w.exercises[exerciseName].sets, day: w.day }))
+    .reverse();
+}
+
+// Compare a current set to the prior set (same index). Returns "good" | "bad" | "same" | null.
+function compareSet(type, cur, prev) {
+  if (!prev || !cur) return null;
+  if (type === "standard") {
+    const cw = cur.weight, cr = cur.reps, pw = prev.weight, pr = prev.reps;
+    if (cw == null || cr == null || pw == null || pr == null) return null;
+    if (cw > pw) return "good";
+    if (cw < pw) return "bad";
+    if (cr > pr) return "good";
+    if (cr < pr) return "bad";
+    return "same";
+  }
+  if (type === "carry") {
+    const cw = cur.weight, cs = cur.seconds, pw = prev.weight, ps = prev.seconds;
+    if (cw == null || cs == null || pw == null || ps == null) return null;
+    if (cw > pw) return "good";
+    if (cw < pw) return "bad";
+    if (cs > ps) return "good";
+    if (cs < ps) return "bad";
+    return "same";
+  }
+  return null;
+}
+
+function summaryForType(type, sets) {
+  if (!sets || !sets.length) return "—";
+  if (type === "standard") {
+    return sets.map(s => `${fmtNum(s.weight)}×${fmtNum(s.reps)}`).join("  ");
+  }
+  if (type === "sprints") {
+    const speeds = sets.map(s => parseNum(s.speed)).filter(v => v != null);
+    const top = speeds.length ? Math.max(...speeds) : null;
+    return `${sets.length} sprints${top != null ? `, top ${fmtNum(top)} mph` : ""}`;
+  }
+  if (type === "carry") {
+    return sets.map(s => `${fmtNum(s.weight)} lb × ${fmtNum(s.seconds)}s`).join("  ");
+  }
+  return "—";
+}
+
+// ---------- Router ----------
+const state = {
+  view: "home",          // 'home' | 'day' | 'history'
+  day: null,
+  historyExercise: null,
+  draft: {},             // exerciseName -> sets array, populated in day view
+};
+
+function navigate(view, opts = {}) {
+  state.view = view;
+  if ("day" in opts) state.day = opts.day;
+  if ("exercise" in opts) state.historyExercise = opts.exercise;
+  // Wipe draft only when returning to home, so peeking at history during a workout doesn't lose entries.
+  if (view === "home") state.draft = {};
+  render();
+  window.scrollTo({ top: 0, behavior: "instant" });
+}
+
+// ---------- Rendering ----------
+const app = document.getElementById("app");
+
+function render() {
+  if (state.view === "home") return renderHome();
+  if (state.view === "day") return renderDay(state.day);
+  if (state.view === "history") return renderHistory(state.historyExercise);
+}
+
+function renderHome() {
+  const all = loadWorkouts();
+  const recent = all.slice(-3).reverse();
+
+  app.innerHTML = "";
+  document.querySelectorAll(".save-bar").forEach(b => b.remove());
+  const header = el(`
+    <header class="bar">
+      <h1>Workout Tracker</h1>
+    </header>
+  `);
+  app.appendChild(header);
+
+  app.appendChild(el(`<div class="section-title">Pick a day</div>`));
+
+  const grid = document.createElement("div");
+  grid.className = "day-grid";
+  for (const k of Object.keys(PROGRAM)) {
+    const day = PROGRAM[k];
+    const card = el(`
+      <button class="day-card" type="button">
+        <div class="num">DAY ${k}</div>
+        <div class="title">${escapeHTML(day.title)}</div>
+        <div class="meta">${day.exercises.length} exercises</div>
+      </button>
+    `);
+    card.addEventListener("click", () => navigate("day", { day: Number(k) }));
+    grid.appendChild(card);
+  }
+  app.appendChild(grid);
+
+  if (recent.length) {
+    app.appendChild(el(`<div class="section-title">Recent sessions</div>`));
+    for (const w of recent) {
+      const d = PROGRAM[w.day];
+      const exCount = Object.keys(w.exercises || {}).length;
+      const entry = el(`
+        <div class="history-entry">
+          <div class="when"><span>${escapeHTML(fmtDate(w.ts))}</span><span style="color:var(--muted)">Day ${w.day} · ${escapeHTML(d ? d.title : "")}</span></div>
+          <div class="sets" style="color:var(--muted)">${exCount} exercise${exCount === 1 ? "" : "s"} logged</div>
+        </div>
+      `);
+      app.appendChild(entry);
+    }
+  }
+
+  const settings = el(`
+    <div class="settings-row">
+      <button id="exportBtn" type="button">Export JSON</button>
+      <button id="importBtn" type="button">Import JSON</button>
+      <button id="clearBtn" type="button" class="danger">Clear all data</button>
+    </div>
+  `);
+  app.appendChild(settings);
+  settings.querySelector("#exportBtn").addEventListener("click", exportData);
+  settings.querySelector("#importBtn").addEventListener("click", importData);
+  settings.querySelector("#clearBtn").addEventListener("click", clearData);
+}
+
+function renderDay(dayNum) {
+  const day = PROGRAM[dayNum];
+  if (!day) return navigate("home");
+
+  // Seed draft only for exercises not already in the draft (so a history detour preserves in-progress entries).
+  for (const ex of day.exercises) {
+    if (state.draft[ex.name]) continue;
+    if (ex.type === "standard") {
+      state.draft[ex.name] = Array.from({ length: ex.sets }, () => ({ weight: "", reps: "" }));
+    } else if (ex.type === "carry") {
+      state.draft[ex.name] = Array.from({ length: ex.sets }, () => ({ weight: "", seconds: "" }));
+    } else if (ex.type === "sprints") {
+      state.draft[ex.name] = [{ speed: "" }, { speed: "" }, { speed: "" }, { speed: "" }];
+    }
+  }
+
+  app.innerHTML = "";
+  const header = el(`
+    <header class="bar">
+      <button class="icon ghost" id="backBtn" type="button" aria-label="Back">←</button>
+      <h1>Day ${dayNum} <span class="sub">${escapeHTML(day.title)}</span></h1>
+    </header>
+  `);
+  app.appendChild(header);
+  header.querySelector("#backBtn").addEventListener("click", () => navigate("home"));
+
+  for (const ex of day.exercises) {
+    app.appendChild(renderExerciseCard(ex));
+  }
+
+  const bar = el(`
+    <div class="save-bar"><div class="inner"><button class="primary" id="saveBtn" type="button">Save Workout</button></div></div>
+  `);
+  document.body.appendChild(bar);
+  bar.querySelector("#saveBtn").addEventListener("click", () => saveWorkout(dayNum));
+
+  // Remove any stray save bars when navigating
+  cleanupOnNavigate(bar);
+}
+
+function cleanupOnNavigate(barEl) {
+  // Remove old save bars beyond the latest
+  const bars = document.querySelectorAll(".save-bar");
+  bars.forEach(b => { if (b !== barEl) b.remove(); });
+}
+
+function renderExerciseCard(ex) {
+  const last = lastSessionFor(ex.name);
+  const lastSets = last ? last.ex.sets : null;
+  const lastWhen = last ? fmtDate(last.session.ts) : null;
+
+  const card = document.createElement("div");
+  card.className = "exercise";
+
+  const head = el(`
+    <h2>
+      ${escapeHTML(ex.name)}
+      <button class="history-link" type="button" title="View history">History →</button>
+    </h2>
+    <div class="target">${escapeHTML(ex.target)}${lastWhen ? ` · Last: ${escapeHTML(lastWhen)}` : ""}</div>
+  `);
+  card.append(...head);
+  card.querySelector(".history-link").addEventListener("click", () => navigate("history", { exercise: ex.name }));
+
+  if (ex.type === "standard") {
+    for (let i = 0; i < ex.sets; i++) {
+      card.appendChild(renderStandardSet(ex, i, lastSets));
+    }
+  } else if (ex.type === "carry") {
+    for (let i = 0; i < ex.sets; i++) {
+      card.appendChild(renderCarrySet(ex, i, lastSets));
+    }
+  } else if (ex.type === "sprints") {
+    const list = document.createElement("div");
+    list.className = "sprints-list";
+    list.dataset.exercise = ex.name;
+    redrawSprints(list, ex, lastSets);
+    card.appendChild(list);
+
+    const addBtn = el(`<button class="add-sprint" type="button">+ Add sprint</button>`);
+    addBtn.addEventListener("click", () => {
+      state.draft[ex.name].push({ speed: "" });
+      redrawSprints(list, ex, lastSets);
+    });
+    card.appendChild(addBtn);
+
+    if (lastSets) {
+      const speeds = lastSets.map(s => parseNum(s.speed)).filter(v => v != null);
+      const top = speeds.length ? Math.max(...speeds) : null;
+      const lastLine = el(`<div class="target" style="margin-top:8px">Last: ${lastSets.length} sprints${top != null ? `, top ${fmtNum(top)} mph` : ""}</div>`);
+      card.appendChild(lastLine);
+    }
+  }
+
+  return card;
+}
+
+function renderStandardSet(ex, i, lastSets) {
+  const prev = lastSets && lastSets[i] ? lastSets[i] : null;
+  const draftSet = state.draft[ex.name][i];
+  const row = document.createElement("div");
+  row.className = "set-row";
+
+  const label = el(`<div class="label">SET ${i + 1}</div>`);
+  row.appendChild(label);
+
+  const wWrap = makeInputWrap({
+    placeholder: "Weight",
+    unit: "lb",
+    last: prev && prev.weight != null ? `${fmtNum(prev.weight)} lb` : null,
+    value: draftSet.weight,
+    onInput: (v) => {
+      state.draft[ex.name][i].weight = v;
+      updateBadge(row, ex.type, state.draft[ex.name][i], prev);
+    },
+  });
+  const rWrap = makeInputWrap({
+    placeholder: "Reps",
+    unit: "reps",
+    last: prev && prev.reps != null ? `${fmtNum(prev.reps)} reps` : null,
+    value: draftSet.reps,
+    onInput: (v) => {
+      state.draft[ex.name][i].reps = v;
+      updateBadge(row, ex.type, state.draft[ex.name][i], prev);
+    },
+  });
+
+  row.appendChild(wWrap);
+  row.appendChild(rWrap);
+
+  const badge = document.createElement("span");
+  badge.className = "badge-slot";
+  label.appendChild(badge);
+
+  // Show badge immediately if we already have draft data
+  updateBadge(row, ex.type, draftSet, prev);
+
+  return row;
+}
+
+function renderCarrySet(ex, i, lastSets) {
+  const prev = lastSets && lastSets[i] ? lastSets[i] : null;
+  const draftSet = state.draft[ex.name][i];
+  const row = document.createElement("div");
+  row.className = "set-row";
+
+  const label = el(`<div class="label">SET ${i + 1}</div>`);
+  row.appendChild(label);
+
+  const wWrap = makeInputWrap({
+    placeholder: "Weight",
+    unit: "lb",
+    last: prev && prev.weight != null ? `${fmtNum(prev.weight)} lb` : null,
+    value: draftSet.weight,
+    onInput: (v) => {
+      state.draft[ex.name][i].weight = v;
+      updateBadge(row, ex.type, state.draft[ex.name][i], prev);
+    },
+  });
+  const sWrap = makeInputWrap({
+    placeholder: "Time",
+    unit: "sec",
+    last: prev && prev.seconds != null ? `${fmtNum(prev.seconds)} sec` : null,
+    value: draftSet.seconds,
+    onInput: (v) => {
+      state.draft[ex.name][i].seconds = v;
+      updateBadge(row, ex.type, state.draft[ex.name][i], prev);
+    },
+  });
+
+  row.appendChild(wWrap);
+  row.appendChild(sWrap);
+
+  const badge = document.createElement("span");
+  badge.className = "badge-slot";
+  label.appendChild(badge);
+  updateBadge(row, ex.type, draftSet, prev);
+
+  return row;
+}
+
+function redrawSprints(list, ex, lastSets) {
+  list.innerHTML = "";
+  const draft = state.draft[ex.name];
+  const lastSpeeds = lastSets ? lastSets.map(s => parseNum(s.speed)).filter(v => v != null) : [];
+  const lastTop = lastSpeeds.length ? Math.max(...lastSpeeds) : null;
+
+  draft.forEach((sprint, i) => {
+    const row = document.createElement("div");
+    row.className = "sprint-row";
+
+    row.appendChild(el(`<div class="label">#${i + 1}</div>`));
+
+    const wrap = makeInputWrap({
+      placeholder: "Top speed",
+      unit: "mph",
+      last: null,
+      value: sprint.speed,
+      onInput: (v) => {
+        draft[i].speed = v;
+      },
+      step: "0.1",
+    });
+    row.appendChild(wrap);
+
+    const remove = el(`<button class="remove" type="button" aria-label="Remove sprint">×</button>`);
+    remove.addEventListener("click", () => {
+      draft.splice(i, 1);
+      if (draft.length === 0) draft.push({ speed: "" });
+      redrawSprints(list, ex, lastSets);
+    });
+    row.appendChild(remove);
+
+    list.appendChild(row);
+  });
+
+  if (lastTop != null) {
+    // top speed comparison shown below as a strip
+    const strip = document.createElement("div");
+    strip.className = "target";
+    strip.style.marginTop = "4px";
+    strip.innerHTML = `Beat last top speed of <strong style="color:var(--text)">${fmtNum(lastTop)} mph</strong>`;
+    list.appendChild(strip);
+  }
+}
+
+function makeInputWrap({ placeholder, unit, last, onInput, step, value }) {
+  const wrap = document.createElement("div");
+  wrap.className = "input-wrap";
+
+  if (last) {
+    const lastEl = document.createElement("span");
+    lastEl.className = "last";
+    lastEl.innerHTML = `Last: <span class="v">${escapeHTML(last)}</span>`;
+    wrap.appendChild(lastEl);
+  }
+
+  const input = document.createElement("input");
+  input.type = "number";
+  input.inputMode = "decimal";
+  input.placeholder = placeholder;
+  input.autocomplete = "off";
+  if (step) input.step = step;
+  if (unit) input.classList.add("with-unit");
+  if (value !== undefined && value !== null && value !== "") input.value = value;
+  input.addEventListener("input", (e) => onInput(e.target.value));
+  wrap.appendChild(input);
+
+  if (unit) {
+    const u = document.createElement("span");
+    u.className = "unit";
+    u.textContent = unit;
+    wrap.appendChild(u);
+  }
+  return wrap;
+}
+
+function updateBadge(row, type, cur, prev) {
+  const slot = row.querySelector(".badge-slot");
+  if (!slot) return;
+  const verdict = compareSet(type, normalizeSet(type, cur), prev);
+  slot.innerHTML = "";
+  if (!verdict) return;
+  const map = { good: "PR+", bad: "↓", same: "=" };
+  const b = document.createElement("span");
+  b.className = `badge ${verdict}`;
+  b.textContent = map[verdict];
+  slot.appendChild(b);
+}
+
+function normalizeSet(type, s) {
+  if (type === "standard") {
+    const w = parseNum(s.weight), r = parseNum(s.reps);
+    if (w == null || r == null) return null;
+    return { weight: w, reps: r };
+  }
+  if (type === "carry") {
+    const w = parseNum(s.weight), sec = parseNum(s.seconds);
+    if (w == null || sec == null) return null;
+    return { weight: w, seconds: sec };
+  }
+  if (type === "sprints") {
+    const sp = parseNum(s.speed);
+    if (sp == null) return null;
+    return { speed: sp };
+  }
+  return null;
+}
+
+// ---------- Save ----------
+function saveWorkout(dayNum) {
+  const day = PROGRAM[dayNum];
+  const exercisesPayload = {};
+  let anyData = false;
+
+  for (const ex of day.exercises) {
+    const draft = state.draft[ex.name] || [];
+    const sets = [];
+    for (const s of draft) {
+      const norm = normalizeSet(ex.type, s);
+      if (norm) sets.push(norm);
+    }
+    if (sets.length) {
+      exercisesPayload[ex.name] = { type: ex.type, sets };
+      anyData = true;
+    }
+  }
+
+  if (!anyData) {
+    toast("Nothing to save — log at least one set.");
+    return;
+  }
+
+  const all = loadWorkouts();
+  all.push({
+    ts: Date.now(),
+    day: dayNum,
+    exercises: exercisesPayload,
+  });
+  saveWorkouts(all);
+  toast("Workout saved");
+  setTimeout(() => navigate("home"), 600);
+}
+
+// ---------- History ----------
+function renderHistory(exerciseName) {
+  app.innerHTML = "";
+  // Strip save bar
+  document.querySelectorAll(".save-bar").forEach(b => b.remove());
+
+  const header = el(`
+    <header class="bar">
+      <button class="icon ghost" id="backBtn" type="button" aria-label="Back">←</button>
+      <h1>${escapeHTML(exerciseName)} <span class="sub">history</span></h1>
+    </header>
+  `);
+  app.appendChild(header);
+  header.querySelector("#backBtn").addEventListener("click", () => {
+    if (state.day) navigate("day", { day: state.day });
+    else navigate("home");
+  });
+
+  const hist = historyFor(exerciseName);
+  if (!hist.length) {
+    app.appendChild(el(`<div class="empty">No sessions logged yet for this exercise.</div>`));
+    return;
+  }
+
+  // Determine type from any session
+  const type = inferExerciseType(exerciseName);
+
+  // Compare each entry to the NEXT older entry (chronologically previous)
+  for (let i = 0; i < hist.length; i++) {
+    const entry = hist[i];
+    const prevEntry = hist[i + 1] || null;
+    app.appendChild(renderHistoryEntry(entry, prevEntry, type));
+  }
+}
+
+function inferExerciseType(name) {
+  for (const k of Object.keys(PROGRAM)) {
+    const found = PROGRAM[k].exercises.find(e => e.name === name);
+    if (found) return found.type;
+  }
+  return "standard";
+}
+
+function renderHistoryEntry(entry, prevEntry, type) {
+  const wrap = document.createElement("div");
+  wrap.className = "history-entry";
+
+  const head = document.createElement("div");
+  head.className = "when";
+  head.innerHTML = `<span>${escapeHTML(fmtDate(entry.ts))}</span><span style="color:var(--muted)">Day ${entry.day}</span>`;
+  wrap.appendChild(head);
+
+  const setsLine = document.createElement("div");
+  setsLine.className = "sets";
+
+  if (type === "standard") {
+    entry.sets.forEach((s, i) => {
+      const prev = prevEntry && prevEntry.sets[i] ? prevEntry.sets[i] : null;
+      const v = compareSet("standard", s, prev);
+      const span = document.createElement("span");
+      span.innerHTML = `${fmtNum(s.weight)}×${fmtNum(s.reps)}${badgeHTML(v)}`;
+      setsLine.appendChild(span);
+    });
+  } else if (type === "carry") {
+    entry.sets.forEach((s, i) => {
+      const prev = prevEntry && prevEntry.sets[i] ? prevEntry.sets[i] : null;
+      const v = compareSet("carry", s, prev);
+      const span = document.createElement("span");
+      span.innerHTML = `${fmtNum(s.weight)} lb × ${fmtNum(s.seconds)}s${badgeHTML(v)}`;
+      setsLine.appendChild(span);
+    });
+  } else if (type === "sprints") {
+    const speeds = entry.sets.map(s => parseNum(s.speed)).filter(v => v != null);
+    const top = speeds.length ? Math.max(...speeds) : null;
+    let v = null;
+    if (prevEntry) {
+      const prevSpeeds = prevEntry.sets.map(s => parseNum(s.speed)).filter(x => x != null);
+      const prevTop = prevSpeeds.length ? Math.max(...prevSpeeds) : null;
+      if (top != null && prevTop != null) {
+        v = top > prevTop ? "good" : top < prevTop ? "bad" : "same";
+      }
+    }
+    setsLine.innerHTML = `${entry.sets.length} sprints${top != null ? `, top <strong>${fmtNum(top)} mph</strong>` : ""}${badgeHTML(v)}`;
+    if (speeds.length) {
+      const detail = document.createElement("div");
+      detail.style.color = "var(--muted)";
+      detail.style.fontSize = "12px";
+      detail.style.marginTop = "4px";
+      detail.textContent = "All: " + speeds.map(fmtNum).join(", ") + " mph";
+      wrap.appendChild(setsLine);
+      wrap.appendChild(detail);
+      return wrap;
+    }
+  }
+  wrap.appendChild(setsLine);
+  return wrap;
+}
+
+function badgeHTML(v) {
+  if (!v) return "";
+  const map = { good: "PR+", bad: "↓", same: "=" };
+  return ` <span class="badge ${v}">${map[v]}</span>`;
+}
+
+// ---------- Export / Import / Clear ----------
+function exportData() {
+  const data = loadWorkouts();
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `workout-tracker-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+function importData() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "application/json,.json";
+  input.addEventListener("change", () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result));
+        if (!Array.isArray(parsed)) throw new Error("Not an array");
+        if (!confirm(`Import ${parsed.length} sessions? This will REPLACE current data.`)) return;
+        saveWorkouts(parsed);
+        toast("Imported");
+        render();
+      } catch (e) {
+        alert("Invalid file: " + e.message);
+      }
+    };
+    reader.readAsText(file);
+  });
+  input.click();
+}
+function clearData() {
+  if (!confirm("Delete ALL workout history? This cannot be undone.")) return;
+  if (!confirm("Are you sure? Really delete everything?")) return;
+  localStorage.removeItem(STORAGE_KEY);
+  toast("All data cleared");
+  render();
+}
+
+// ---------- Toast ----------
+let toastTimer = null;
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 1800);
+}
+
+// ---------- Tiny DOM helpers ----------
+function el(html) {
+  const tpl = document.createElement("template");
+  tpl.innerHTML = html.trim();
+  // Return a NodeList-ish array if multi, else single node
+  if (tpl.content.children.length === 1) return tpl.content.firstElementChild;
+  return Array.from(tpl.content.children);
+}
+function escapeHTML(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// Wipe sticky save bar on initial home render
+function init() { render(); }
+init();
+</script>
+</body>
+</html>
