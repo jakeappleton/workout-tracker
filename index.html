@@ -345,6 +345,37 @@
     .set-row.three { grid-template-columns: 32px 1fr 1fr 1fr; }
     .input-wrap input { font-size: 15px; padding: 9px 8px; }
   }
+
+  /* Progress page */
+  .day-card.full { grid-column: 1 / -1; }
+  .progress-select {
+    width: 100%;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 12px;
+    font-size: 16px;
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M3 4.5l3 3 3-3' stroke='%238a8a94' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+  }
+  .progress-select:focus { outline: none; border-color: var(--accent); }
+  .toggle-row { display: flex; gap: 8px; margin-top: 10px; }
+  .toggle-row button { flex: 1; font-size: 13px; padding: 8px 10px; }
+  .progress-chart { display: block; width: 100%; height: auto; }
+  .progress-stats {
+    color: var(--muted);
+    font-size: 13px;
+    margin-top: 12px;
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .progress-stats strong { color: var(--text); font-variant-numeric: tabular-nums; }
 </style>
 </head>
 <body>
@@ -362,7 +393,7 @@ const PROGRAM = {
       { name: "Bench Press",            target: "2x3-5, heavy",   type: "standard", sets: 2 },
       { name: "Weighted Pull-Ups",      target: "2x3-5, heavy",   type: "standard", sets: 2 },
       { name: "Incline Dumbbell Curl",  target: "2x to failure",  type: "standard", sets: 2 },
-      { name: "Preacher Curl",          target: "2x to failure",  type: "standard", sets: 2 },
+      { name: "Cable Curl",             target: "2x to failure",  type: "standard", sets: 2 },
       { name: "Tricep Pushdown",        target: "2x to failure",  type: "standard", sets: 2 },
       { name: "Neck Flexion/Extension", target: "2x to failure",  type: "standard", sets: 2 },
     ],
@@ -492,10 +523,12 @@ function summaryForType(type, sets) {
 
 // ---------- Router ----------
 const state = {
-  view: "home",          // 'home' | 'day' | 'history'
+  view: "home",          // 'home' | 'day' | 'history' | 'progress'
   day: null,
   historyExercise: null,
   draft: {},             // exerciseName -> sets array, populated in day view
+  progressExercise: "",
+  progressCarryMetric: "weight",
 };
 
 function navigate(view, opts = {}) {
@@ -515,6 +548,7 @@ function render() {
   if (state.view === "home") return renderHome();
   if (state.view === "day") return renderDay(state.day);
   if (state.view === "history") return renderHistory(state.historyExercise);
+  if (state.view === "progress") return renderProgress();
 }
 
 function renderHome() {
@@ -546,6 +580,15 @@ function renderHome() {
     card.addEventListener("click", () => navigate("day", { day: Number(k) }));
     grid.appendChild(card);
   }
+  const progressCard = el(`
+    <button class="day-card full" type="button">
+      <div class="num">VIEW</div>
+      <div class="title">Progress</div>
+      <div class="meta">Chart any exercise over time</div>
+    </button>
+  `);
+  progressCard.addEventListener("click", () => navigate("progress"));
+  grid.appendChild(progressCard);
   app.appendChild(grid);
 
   if (recent.length) {
@@ -898,6 +941,247 @@ function saveWorkout(dayNum) {
   saveWorkouts(all);
   toast("Workout saved");
   setTimeout(() => navigate("home"), 600);
+}
+
+// ---------- Progress ----------
+function renderProgress() {
+  app.innerHTML = "";
+  document.querySelectorAll(".save-bar").forEach(b => b.remove());
+
+  const header = el(`
+    <header class="bar">
+      <button class="icon ghost" id="backBtn" type="button" aria-label="Back">←</button>
+      <h1>Progress</h1>
+    </header>
+  `);
+  app.appendChild(header);
+  header.querySelector("#backBtn").addEventListener("click", () => navigate("home"));
+
+  // Collect known exercises: from PROGRAM, plus any historical names not in PROGRAM (e.g. renamed/retired moves)
+  const exerciseTypes = new Map();
+  for (const k of Object.keys(PROGRAM)) {
+    for (const ex of PROGRAM[k].exercises) exerciseTypes.set(ex.name, ex.type);
+  }
+  for (const w of loadWorkouts()) {
+    for (const name of Object.keys(w.exercises || {})) {
+      if (!exerciseTypes.has(name)) {
+        exerciseTypes.set(name, w.exercises[name].type || "standard");
+      }
+    }
+  }
+  const names = Array.from(exerciseTypes.keys()).sort((a, b) => a.localeCompare(b));
+
+  const picker = document.createElement("div");
+  picker.className = "exercise";
+  picker.appendChild(el(`<div class="target" style="margin-bottom: 8px">Exercise</div>`));
+
+  const select = document.createElement("select");
+  select.className = "progress-select";
+  const defaultOpt = document.createElement("option");
+  defaultOpt.value = "";
+  defaultOpt.textContent = "Choose an exercise…";
+  select.appendChild(defaultOpt);
+  for (const name of names) {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    select.appendChild(opt);
+  }
+  select.value = state.progressExercise && exerciseTypes.has(state.progressExercise) ? state.progressExercise : "";
+  picker.appendChild(select);
+
+  const toggleRow = document.createElement("div");
+  toggleRow.className = "toggle-row";
+  toggleRow.style.display = "none";
+  picker.appendChild(toggleRow);
+
+  app.appendChild(picker);
+
+  const chartBox = document.createElement("div");
+  chartBox.className = "exercise";
+  chartBox.style.display = "none";
+  app.appendChild(chartBox);
+
+  function refresh() {
+    const name = state.progressExercise;
+    if (!name) {
+      chartBox.style.display = "none";
+      toggleRow.style.display = "none";
+      return;
+    }
+    const type = exerciseTypes.get(name) || "standard";
+
+    if (type === "carry") {
+      toggleRow.style.display = "flex";
+      toggleRow.innerHTML = "";
+      const wBtn = el(`<button type="button">Weight (lb)</button>`);
+      const sBtn = el(`<button type="button">Time (sec)</button>`);
+      if (state.progressCarryMetric === "seconds") sBtn.classList.add("primary");
+      else wBtn.classList.add("primary");
+      wBtn.addEventListener("click", () => { state.progressCarryMetric = "weight"; refresh(); });
+      sBtn.addEventListener("click", () => { state.progressCarryMetric = "seconds"; refresh(); });
+      toggleRow.appendChild(wBtn);
+      toggleRow.appendChild(sBtn);
+    } else {
+      toggleRow.style.display = "none";
+    }
+
+    const points = [];
+    for (const w of loadWorkouts()) {
+      const ex = w.exercises && w.exercises[name];
+      if (!ex || !ex.sets || !ex.sets.length) continue;
+      let value = null;
+      if (type === "standard") {
+        const ws = ex.sets.map(s => parseNum(s.weight)).filter(v => v != null);
+        if (ws.length) value = Math.max(...ws);
+      } else if (type === "sprints") {
+        const sp = ex.sets.map(s => parseNum(s.speed)).filter(v => v != null);
+        if (sp.length) value = Math.max(...sp);
+      } else if (type === "carry") {
+        const vs = ex.sets.map(s => parseNum(s[state.progressCarryMetric])).filter(v => v != null);
+        if (vs.length) value = Math.max(...vs);
+      }
+      if (value != null) points.push({ ts: w.ts, value });
+    }
+    points.sort((a, b) => a.ts - b.ts);
+
+    const yLabel = type === "sprints" ? "Top speed (mph)"
+      : type === "carry" ? (state.progressCarryMetric === "weight" ? "Top weight (lb)" : "Top time (sec)")
+      : "Top set weight (lb)";
+
+    chartBox.style.display = "block";
+    chartBox.innerHTML = "";
+    chartBox.appendChild(el(`
+      <h2 style="margin-bottom: 4px">${escapeHTML(name)}</h2>
+      <div class="target" style="margin-bottom: 12px">${escapeHTML(yLabel)}</div>
+    `));
+
+    if (!points.length) {
+      chartBox.appendChild(el(`<div class="empty" style="padding: 20px 0">No data yet for this exercise.</div>`));
+      return;
+    }
+
+    chartBox.appendChild(buildChart(points));
+
+    const latest = points[points.length - 1].value;
+    const best = Math.max(...points.map(p => p.value));
+    chartBox.appendChild(el(`
+      <div class="progress-stats">
+        <span>Sessions: <strong>${points.length}</strong></span>
+        <span>Latest: <strong>${escapeHTML(fmtNum(latest))}</strong></span>
+        <span>Best: <strong>${escapeHTML(fmtNum(best))}</strong></span>
+      </div>
+    `));
+  }
+
+  select.addEventListener("change", () => {
+    state.progressExercise = select.value;
+    refresh();
+  });
+
+  refresh();
+}
+
+function buildChart(points) {
+  const W = 600, H = 280;
+  const PAD = { left: 44, right: 16, top: 16, bottom: 36 };
+  const innerW = W - PAD.left - PAD.right;
+  const innerH = H - PAD.top - PAD.bottom;
+  const NS = "http://www.w3.org/2000/svg";
+
+  const values = points.map(p => p.value);
+  let minV = Math.min(...values), maxV = Math.max(...values);
+  if (minV === maxV) { minV -= 1; maxV += 1; }
+  const vSpan = maxV - minV;
+  minV -= vSpan * 0.1;
+  maxV += vSpan * 0.1;
+
+  const ts = points.map(p => p.ts);
+  let minT = Math.min(...ts), maxT = Math.max(...ts);
+  if (minT === maxT) { minT -= 86400000; maxT += 86400000; }
+
+  const x = t => PAD.left + ((t - minT) / (maxT - minT)) * innerW;
+  const y = v => PAD.top + (1 - (v - minV) / (maxV - minV)) * innerH;
+
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.setAttribute("preserveAspectRatio", "none");
+  svg.classList.add("progress-chart");
+
+  // Y gridlines + labels
+  const ySteps = 4;
+  for (let i = 0; i <= ySteps; i++) {
+    const v = minV + (maxV - minV) * (i / ySteps);
+    const yy = y(v);
+    const line = document.createElementNS(NS, "line");
+    line.setAttribute("x1", PAD.left);
+    line.setAttribute("x2", W - PAD.right);
+    line.setAttribute("y1", yy);
+    line.setAttribute("y2", yy);
+    line.setAttribute("stroke", "#2a2a32");
+    line.setAttribute("stroke-width", "1");
+    svg.appendChild(line);
+
+    const label = document.createElementNS(NS, "text");
+    label.setAttribute("x", PAD.left - 6);
+    label.setAttribute("y", yy + 4);
+    label.setAttribute("fill", "#8a8a94");
+    label.setAttribute("font-size", "11");
+    label.setAttribute("text-anchor", "end");
+    label.textContent = fmtNum(Math.round(v * 10) / 10);
+    svg.appendChild(label);
+  }
+
+  // X-axis date labels — up to 4 evenly spaced ticks based on point indices
+  const tickCount = Math.min(points.length, 4);
+  const tickIdx = [];
+  if (points.length <= tickCount) {
+    for (let i = 0; i < points.length; i++) tickIdx.push(i);
+  } else {
+    for (let i = 0; i < tickCount; i++) tickIdx.push(Math.round(i * (points.length - 1) / (tickCount - 1)));
+  }
+  for (const i of tickIdx) {
+    const p = points[i];
+    const tx = x(p.ts);
+    const text = document.createElementNS(NS, "text");
+    text.setAttribute("x", tx);
+    text.setAttribute("y", H - PAD.bottom + 18);
+    text.setAttribute("fill", "#8a8a94");
+    text.setAttribute("font-size", "11");
+    text.setAttribute("text-anchor", "middle");
+    const d = new Date(p.ts);
+    text.textContent = d.toLocaleDateString([], { month: "short", day: "numeric" });
+    svg.appendChild(text);
+  }
+
+  if (points.length > 1) {
+    let d = "";
+    points.forEach((p, i) => { d += (i === 0 ? "M" : "L") + x(p.ts) + " " + y(p.value); });
+    const path = document.createElementNS(NS, "path");
+    path.setAttribute("d", d);
+    path.setAttribute("stroke", "#60a5fa");
+    path.setAttribute("stroke-width", "2");
+    path.setAttribute("fill", "none");
+    path.setAttribute("stroke-linecap", "round");
+    path.setAttribute("stroke-linejoin", "round");
+    svg.appendChild(path);
+  }
+
+  for (const p of points) {
+    const c = document.createElementNS(NS, "circle");
+    c.setAttribute("cx", x(p.ts));
+    c.setAttribute("cy", y(p.value));
+    c.setAttribute("r", "4");
+    c.setAttribute("fill", "#3b82f6");
+    c.setAttribute("stroke", "#0e0e10");
+    c.setAttribute("stroke-width", "2");
+    const title = document.createElementNS(NS, "title");
+    title.textContent = `${fmtDate(p.ts)}: ${fmtNum(p.value)}`;
+    c.appendChild(title);
+    svg.appendChild(c);
+  }
+
+  return svg;
 }
 
 // ---------- History ----------
