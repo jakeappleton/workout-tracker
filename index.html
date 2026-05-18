@@ -376,6 +376,111 @@
     flex-wrap: wrap;
   }
   .progress-stats strong { color: var(--text); font-variant-numeric: tabular-nums; }
+
+  /* Rest timer */
+  .rest-timer {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: calc(16px + env(safe-area-inset-bottom));
+    max-width: 696px;
+    margin: 0 auto;
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+    color: #14110a;
+    border-radius: 14px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 10px 30px rgba(251, 191, 36, 0.4), 0 4px 12px rgba(0, 0, 0, 0.5);
+    z-index: 40;
+    animation: rest-pop 0.25s ease-out;
+  }
+  body.has-save-bar .rest-timer {
+    bottom: calc(76px + env(safe-area-inset-bottom));
+  }
+  .rest-timer[hidden] { display: none; }
+
+  @keyframes rest-pop {
+    from { transform: translateY(16px); opacity: 0; }
+    to   { transform: translateY(0); opacity: 1; }
+  }
+
+  .rest-timer .rest-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .rest-timer .rest-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.85;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .rest-timer .rest-time {
+    font-size: 34px;
+    font-weight: 800;
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    margin-top: 1px;
+  }
+  .rest-timer .rest-controls {
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: 6px;
+  }
+  .rest-timer .rest-btn {
+    background: rgba(20, 17, 10, 0.18);
+    border: 1px solid rgba(20, 17, 10, 0.25);
+    color: #14110a;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    -webkit-appearance: none;
+    transition: transform 0.05s;
+  }
+  .rest-timer .rest-btn:active { transform: scale(0.96); }
+  .rest-timer .rest-skip {
+    grid-column: 1 / -1;
+    background: #14110a;
+    color: #fff;
+    border-color: #14110a;
+  }
+
+  .rest-timer.expired {
+    background: linear-gradient(135deg, #34d399, #10b981);
+    color: #062014;
+    animation: rest-pulse 0.6s ease-in-out infinite alternate;
+  }
+  .rest-timer.expired .rest-btn {
+    background: rgba(6, 32, 20, 0.2);
+    border-color: rgba(6, 32, 20, 0.28);
+    color: #062014;
+  }
+  .rest-timer.expired .rest-skip {
+    background: #062014;
+    color: #fff;
+    border-color: #062014;
+  }
+
+  @keyframes rest-pulse {
+    from { box-shadow: 0 10px 30px rgba(52, 211, 153, 0.45), 0 4px 12px rgba(0,0,0,0.5); transform: scale(1); }
+    to   { box-shadow: 0 10px 44px rgba(52, 211, 153, 0.85), 0 4px 12px rgba(0,0,0,0.5); transform: scale(1.015); }
+  }
+
+  @media (max-width: 380px) {
+    .rest-timer { padding: 10px 12px; gap: 8px; }
+    .rest-timer .rest-time { font-size: 30px; }
+    .rest-timer .rest-btn { padding: 6px 8px; font-size: 11px; }
+  }
 </style>
 </head>
 <body>
@@ -536,7 +641,11 @@ function navigate(view, opts = {}) {
   if ("day" in opts) state.day = opts.day;
   if ("exercise" in opts) state.historyExercise = opts.exercise;
   // Wipe draft only when returning to home, so peeking at history during a workout doesn't lose entries.
-  if (view === "home") state.draft = {};
+  if (view === "home") {
+    state.draft = {};
+    restTimerState.completed.clear();
+    restTimerState.lastStartedKey = null;
+  }
   render();
   window.scrollTo({ top: 0, behavior: "instant" });
 }
@@ -557,6 +666,7 @@ function renderHome() {
 
   app.innerHTML = "";
   document.querySelectorAll(".save-bar").forEach(b => b.remove());
+  document.body.classList.remove("has-save-bar");
   const header = el(`
     <header class="bar">
       <h1>Workout Tracker</h1>
@@ -635,6 +745,16 @@ function renderDay(dayNum) {
     }
   }
 
+  // Sync rest-timer completion tracker with current drafts so re-entering after a
+  // history detour doesn't spuriously fire on the next keystroke in a pre-filled set.
+  for (const ex of day.exercises) {
+    const draft = state.draft[ex.name];
+    if (!draft) continue;
+    draft.forEach((s, i) => {
+      restTimerState.completed.set(setKeyFor(ex.name, i), isSetComplete(ex.type, s));
+    });
+  }
+
   app.innerHTML = "";
   const header = el(`
     <header class="bar">
@@ -653,6 +773,7 @@ function renderDay(dayNum) {
     <div class="save-bar"><div class="inner"><button class="primary" id="saveBtn" type="button">Save Workout</button></div></div>
   `);
   document.body.appendChild(bar);
+  document.body.classList.add("has-save-bar");
   bar.querySelector("#saveBtn").addEventListener("click", () => saveWorkout(dayNum));
 
   // Remove any stray save bars when navigating
@@ -733,6 +854,7 @@ function renderStandardSet(ex, i, lastSets) {
     onInput: (v) => {
       state.draft[ex.name][i].weight = v;
       updateBadge(row, ex.type, state.draft[ex.name][i], prev);
+      onSetInput(ex.name, i, ex.type);
     },
   });
   const rWrap = makeInputWrap({
@@ -743,6 +865,7 @@ function renderStandardSet(ex, i, lastSets) {
     onInput: (v) => {
       state.draft[ex.name][i].reps = v;
       updateBadge(row, ex.type, state.draft[ex.name][i], prev);
+      onSetInput(ex.name, i, ex.type);
     },
   });
 
@@ -776,6 +899,7 @@ function renderCarrySet(ex, i, lastSets) {
     onInput: (v) => {
       state.draft[ex.name][i].weight = v;
       updateBadge(row, ex.type, state.draft[ex.name][i], prev);
+      onSetInput(ex.name, i, ex.type);
     },
   });
   const sWrap = makeInputWrap({
@@ -786,6 +910,7 @@ function renderCarrySet(ex, i, lastSets) {
     onInput: (v) => {
       state.draft[ex.name][i].seconds = v;
       updateBadge(row, ex.type, state.draft[ex.name][i], prev);
+      onSetInput(ex.name, i, ex.type);
     },
   });
 
@@ -819,6 +944,7 @@ function redrawSprints(list, ex, lastSets) {
       value: sprint.speed,
       onInput: (v) => {
         draft[i].speed = v;
+        onSetInput(ex.name, i, ex.type);
       },
       step: "0.1",
     });
@@ -947,6 +1073,7 @@ function saveWorkout(dayNum) {
 function renderProgress() {
   app.innerHTML = "";
   document.querySelectorAll(".save-bar").forEach(b => b.remove());
+  document.body.classList.remove("has-save-bar");
 
   const header = el(`
     <header class="bar">
@@ -1189,6 +1316,7 @@ function renderHistory(exerciseName) {
   app.innerHTML = "";
   // Strip save bar
   document.querySelectorAll(".save-bar").forEach(b => b.remove());
+  document.body.classList.remove("has-save-bar");
 
   const header = el(`
     <header class="bar">
@@ -1355,8 +1483,188 @@ function escapeHTML(s) {
   return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+// ---------- Rest timer ----------
+const REST_DURATION_MS = 2 * 60 * 1000;
+const restTimerState = {
+  endTime: null,
+  intervalId: null,
+  audioCtx: null,
+  setKey: null,
+  label: "",
+  lastStartedKey: null,
+  completed: new Map(),
+  dom: null,
+  labelEl: null,
+  timeEl: null,
+};
+
+function setKeyFor(name, idx) { return `${name}#${idx}`; }
+
+function isSetComplete(type, s) {
+  return normalizeSet(type, s) !== null;
+}
+
+function onSetInput(exName, setIdx, type) {
+  const draftSet = state.draft[exName] && state.draft[exName][setIdx];
+  if (!draftSet) return;
+  const key = setKeyFor(exName, setIdx);
+  const nowComplete = isSetComplete(type, draftSet);
+  const wasComplete = restTimerState.completed.get(key) === true;
+  restTimerState.completed.set(key, nowComplete);
+  if (nowComplete && !wasComplete && restTimerState.lastStartedKey !== key) {
+    startRestTimer(exName, setIdx, type);
+  }
+}
+
+function setLabelFor(exName, setIdx, type) {
+  const unit = type === "sprints" ? "sprint" : "set";
+  return `Rest — ${exName} ${unit} ${setIdx + 1}`;
+}
+
+function startRestTimer(exName, setIdx, type) {
+  ensureRestTimerDom();
+  restTimerState.endTime = Date.now() + REST_DURATION_MS;
+  restTimerState.setKey = setKeyFor(exName, setIdx);
+  restTimerState.lastStartedKey = restTimerState.setKey;
+  restTimerState.label = setLabelFor(exName, setIdx, type);
+  restTimerState.dom.classList.remove("expired");
+  restTimerState.dom.hidden = false;
+  restTimerState.labelEl.textContent = restTimerState.label;
+  if (restTimerState.intervalId) clearInterval(restTimerState.intervalId);
+  restTimerState.intervalId = setInterval(tickRestTimer, 250);
+  primeAudio();
+  tickRestTimer();
+}
+
+function tickRestTimer() {
+  if (restTimerState.endTime == null) return;
+  const remaining = restTimerState.endTime - Date.now();
+  if (remaining <= 0) {
+    fireRestComplete();
+    return;
+  }
+  updateRestTimerDisplay(remaining);
+}
+
+function fireRestComplete() {
+  if (restTimerState.intervalId) clearInterval(restTimerState.intervalId);
+  restTimerState.intervalId = null;
+  restTimerState.endTime = null;
+  updateRestTimerDisplay(0);
+  if (restTimerState.dom) {
+    restTimerState.dom.classList.add("expired");
+    restTimerState.labelEl.textContent = "Rest complete";
+  }
+  playBeep();
+  vibrate();
+  setTimeout(() => {
+    if (restTimerState.endTime == null) hideRestTimerUI();
+  }, 4000);
+}
+
+function adjustRest(deltaMs) {
+  if (restTimerState.endTime == null) return;
+  restTimerState.endTime += deltaMs;
+  const remaining = restTimerState.endTime - Date.now();
+  if (remaining <= 0) {
+    fireRestComplete();
+  } else {
+    tickRestTimer();
+  }
+}
+
+function skipRest() {
+  if (restTimerState.intervalId) clearInterval(restTimerState.intervalId);
+  restTimerState.intervalId = null;
+  restTimerState.endTime = null;
+  hideRestTimerUI();
+}
+
+function updateRestTimerDisplay(remainingMs) {
+  if (!restTimerState.timeEl) return;
+  const remaining = Math.max(0, remainingMs);
+  const totalSec = Math.ceil(remaining / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  restTimerState.timeEl.textContent = `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function hideRestTimerUI() {
+  if (!restTimerState.dom) return;
+  restTimerState.dom.hidden = true;
+  restTimerState.dom.classList.remove("expired");
+}
+
+function ensureRestTimerDom() {
+  if (restTimerState.dom) return;
+  const dom = el(`
+    <div class="rest-timer" id="restTimer" role="region" aria-label="Rest timer" hidden>
+      <div class="rest-info">
+        <div class="rest-label" id="restLabel">Rest</div>
+        <div class="rest-time" id="restTime">2:00</div>
+      </div>
+      <div class="rest-controls">
+        <button type="button" class="rest-btn" id="restMinus" aria-label="Subtract 30 seconds">−30s</button>
+        <button type="button" class="rest-btn" id="restPlus" aria-label="Add 30 seconds">+30s</button>
+        <button type="button" class="rest-btn rest-skip" id="restSkip">Skip</button>
+      </div>
+    </div>
+  `);
+  document.body.appendChild(dom);
+  restTimerState.dom = dom;
+  restTimerState.labelEl = dom.querySelector("#restLabel");
+  restTimerState.timeEl = dom.querySelector("#restTime");
+  dom.querySelector("#restMinus").addEventListener("click", () => adjustRest(-30 * 1000));
+  dom.querySelector("#restPlus").addEventListener("click", () => adjustRest(30 * 1000));
+  dom.querySelector("#restSkip").addEventListener("click", () => skipRest());
+}
+
+function primeAudio() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    if (!restTimerState.audioCtx) restTimerState.audioCtx = new Ctx();
+    if (restTimerState.audioCtx.state === "suspended") restTimerState.audioCtx.resume();
+  } catch (e) {}
+}
+
+function playBeep() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    if (!restTimerState.audioCtx) restTimerState.audioCtx = new Ctx();
+    const ctx = restTimerState.audioCtx;
+    if (ctx.state === "suspended") ctx.resume();
+    const tone = (when, freq, duration) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      const t0 = ctx.currentTime + when;
+      gain.gain.setValueAtTime(0, t0);
+      gain.gain.linearRampToValueAtTime(0.5, t0 + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.001, t0 + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t0);
+      osc.stop(t0 + duration);
+    };
+    tone(0, 880, 0.22);
+    tone(0.26, 1175, 0.32);
+  } catch (e) {}
+}
+
+function vibrate() {
+  try {
+    if (navigator.vibrate) navigator.vibrate([220, 110, 220, 110, 440]);
+  } catch (e) {}
+}
+
 // Wipe sticky save bar on initial home render
-function init() { render(); }
+function init() {
+  ensureRestTimerDom();
+  render();
+}
 init();
 </script>
 </body>
